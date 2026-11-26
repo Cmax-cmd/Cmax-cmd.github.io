@@ -1,0 +1,6 @@
+# reference photos and video used only while modelling (not part of the site)
+_refs/
+
+# dev-only model viewer (needs _refs)
+preview.html
+preview.js

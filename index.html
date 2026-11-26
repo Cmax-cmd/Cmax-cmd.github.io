@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>My Setup</title>
+  <meta name="description" content="My desk setup and peripherals, in 3D." />
+  <meta name="theme-color" content="#07080c" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <canvas id="scene" aria-hidden="true"></canvas>
+
+  <header class="brand">
+    <p class="brand-kicker mono">// setup</p>
+    <h1 id="owner-name">My Setup</h1>
+    <p id="owner-tagline" class="brand-tagline"></p>
+  </header>
+
+  <nav class="gear-list" aria-label="Gear">
+    <ul id="gear-list"></ul>
+  </nav>
+
+  <aside id="card" class="card" aria-live="polite" aria-hidden="true">
+    <button class="card-close" id="card-close" aria-label="Close">✕</button>
+    <div class="card-media" id="card-media"></div>
+    <div class="card-thumbs" id="card-thumbs" hidden></div>
+    <p class="card-credit mono" id="card-credit"></p>
+    <div class="card-body">
+      <p class="card-cat mono" id="card-cat"></p>
+      <h2 id="card-name"></h2>
+      <dl class="card-specs" id="card-specs"></dl>
+      <p class="card-note" id="card-note"></p>
+      <div class="card-actions">
+        <a id="card-link" class="btn" target="_blank" rel="noopener">Product page ↗</a>
+        <span class="card-nav">
+          <button class="btn btn-ghost" id="card-prev" aria-label="Previous item">←</button>
+          <button class="btn btn-ghost" id="card-next" aria-label="Next item">→</button>
+        </span>
+      </div>
+    </div>
+  </aside>
+
+  <div id="tooltip" class="tooltip mono" hidden></div>
+  <p class="hint mono" id="hint">drag to orbit · scroll to zoom · click any gear</p>
+
+  <div id="loader" class="loader">
+    <div class="loader-bar"><span></span></div>
+    <p class="mono" id="loader-text">booting desk…</p>
+  </div>
+
+  <script type="module" src="main.js"></script>
+  <script>
+    // If the 3D scene can't start (old browser, no WebGL, CDN blocked), say so instead of spinning forever.
+    setTimeout(function () {
+      if (window.__gearReady) return;
+      document.getElementById("loader-text").textContent = "3D view couldn't load. Try a newer browser or check your connection.";
+    }, 10000);
+  </script>
+</body>
+</html>
