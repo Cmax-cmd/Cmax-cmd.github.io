@@ -42,6 +42,17 @@ function lcdTexture() {
   });
 }
 
+/** Ryzen IHS marking. */
+function ryzenTexture() {
+  return canvasTex(256, 256, (g) => {
+    g.fillStyle = "rgba(40,42,48,0.75)"; g.textAlign = "center"; g.textBaseline = "middle";
+    g.font = "800 46px system-ui, sans-serif"; g.fillText("AMD", 110, 70);
+    g.beginPath(); g.moveTo(168, 48); g.lineTo(196, 48); g.lineTo(196, 76); g.lineTo(188, 68); g.lineTo(188, 56); g.lineTo(176, 56); g.closePath(); g.fill();
+    g.font = "800 58px system-ui, sans-serif"; g.fillText("RYZEN", 128, 138);
+    g.font = "600 22px system-ui, sans-serif"; g.fillText("7 7800X3D", 128, 192);
+  });
+}
+
 /** White PCB of the X870E AORUS PRO ICE. */
 function pcbTexture() {
   return canvasTex(256, 320, (g, w, h) => {
@@ -229,13 +240,19 @@ export function build(k, d) {
   const steel = k.mat(0xaeb3bb, { metalness: 0.8, roughness: 0.3 });
   const dramBlack = k.mat(0x1b1c20, { metalness: 0.75, roughness: 0.34 });
 
+  // parts that move in the exploded view (all start at the origin, so children keep world coordinates)
+  const roofG = new THREE.Group(), frontG = new THREE.Group(), sideG = new THREE.Group(), ramG = new THREE.Group();
+  const pumpG = new THREE.Group(), radG = new THREE.Group(), gpuG = new THREE.Group(), cpuG = new THREE.Group();
+  g.add(roofG, frontG, sideG, ramG, pumpG, radG, gpuG, cpuG);
+  const anchor = (parent, x, y, z) => { const o = new THREE.Object3D(); o.position.set(x, y, z); parent.add(o); return o; };
+
   /* ---------------------------------------------------------- case shell */
   for (const x of [-HX + 0.03, HX - 0.03]) for (const z of [-HZ + 0.045, HZ - 0.045]) g.add(at(box(0.04, 0.008, 0.06, inner, 0.003), x, 0.004, z));
   g.add(at(box(W, BASE - 0.008, D, white, 0.007), 0, 0.008 + (BASE - 0.008) / 2, 0));
-  g.add(at(box(W, H - ROOF, D, white, 0.008), 0, (ROOF + H) / 2, 0));
+  roofG.add(at(box(W, H - ROOF, D, white, 0.008), 0, (ROOF + H) / 2, 0));
   const topMesh = new THREE.Mesh(new THREE.PlaneGeometry(W - 0.05, D - 0.07), k.mat(0xb3b7bf, { roughness: 0.85, envMapIntensity: 0.35, map: meshTextureLocal(40) }));
   topMesh.rotation.x = -Math.PI / 2;
-  g.add(at(topMesh, -0.01, H + 0.0004, -0.005));
+  roofG.add(at(topMesh, -0.01, H + 0.0004, -0.005));
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(W - 0.012, D - 0.012), lit(0x4670f5, { map: floorTexture() }));
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
@@ -295,15 +312,15 @@ export function build(k, d) {
   const sideGlass = new THREE.Mesh(new THREE.PlaneGeometry(D - 0.004, gH), glassMat);
   sideGlass.position.set(-HX + 0.002, pY, 0);
   sideGlass.rotation.y = -Math.PI / 2;
-  g.add(frontGlass, sideGlass);
+  frontG.add(frontGlass); sideG.add(sideGlass);
   const edgeMat = new THREE.MeshBasicMaterial({ color: 0xbcd0e8, transparent: true, opacity: 0.35, depthWrite: false });
-  g.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.003, gH, 0.003), edgeMat), -HX + 0.0015, pY, HZ - 0.0015));
+  frontG.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.003, gH, 0.003), edgeMat), -HX + 0.0015, pY, HZ - 0.0015));
 
   // ---- ARGB light strips (base and roof, front + left inner edges)
   const stripMat = new THREE.MeshBasicMaterial({ color: 0x9fb8ff, toneMapped: false });
   g.add(at(new THREE.Mesh(new THREE.BoxGeometry(HX + 0.06, 0.003, 0.003), stripMat), (-HX + 0.062) / 2, BASE + 0.0015, HZ - 0.008));
   g.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.003, 0.003, D - 0.02), stripMat), -HX + 0.008, BASE + 0.0015, 0));
-  g.add(at(new THREE.Mesh(new THREE.BoxGeometry(HX + 0.06, 0.003, 0.003), stripMat), (-HX + 0.062) / 2, ROOF - 0.0015, HZ - 0.008));
+  roofG.add(at(new THREE.Mesh(new THREE.BoxGeometry(HX + 0.06, 0.003, 0.003), stripMat), (-HX + 0.062) / 2, ROOF - 0.0015, HZ - 0.008));
 
   /* ---------------------------------------------------------- case fans */
   const hubWhite = lit(0x7494ff, { roughness: 0.4 });
@@ -342,8 +359,8 @@ export function build(k, d) {
   const dummy = new THREE.Object3D();
   [0.1665, 0.1835].forEach((u, s) => {
     const z = mbZ(u), y = mbY(0.088);
-    g.add(at(box(0.04, 0.133, 0.0072, dramBlack, 0.0018), TRAY - 0.027, y, z));
-    g.add(at(box(0.006, 0.124, 0.0076, k.mat(0x3a3c42, { roughness: 0.3, metalness: 0.5 }), 0.0015), TRAY - 0.05, y, z));
+    ramG.add(at(box(0.04, 0.133, 0.0072, dramBlack, 0.0018), TRAY - 0.027, y, z));
+    ramG.add(at(box(0.006, 0.124, 0.0076, k.mat(0x3a3c42, { roughness: 0.3, metalness: 0.5 }), 0.0015), TRAY - 0.05, y, z));
     for (let i = 0; i < pipes; i++) {
       dummy.position.set(TRAY - 0.0535, y - 0.056 + (i / (pipes - 1)) * 0.112, z);
       dummy.updateMatrix();
@@ -351,30 +368,30 @@ export function build(k, d) {
       leds.setColorAt(s * pipes + i, new THREE.Color(1, 1, 1));
     }
   });
-  g.add(leds);
+  ramG.add(leds);
 
   // ---- AIO: HydroShift II LCD-S pump on the CPU
   const cpu = new THREE.Vector3(TRAY, mbY(0.085), mbZ(0.1));
-  g.add(at(box(0.034, 0.064, 0.064, white, 0.01), cpu.x - 0.017, cpu.y, cpu.z));
-  g.add(at(box(0.008, 0.07, 0.07, k.mat(0x16171b, { roughness: 0.25, metalness: 0.3 }), 0.009), cpu.x - 0.037, cpu.y, cpu.z));
+  pumpG.add(at(box(0.034, 0.064, 0.064, white, 0.01), cpu.x - 0.017, cpu.y, cpu.z));
+  pumpG.add(at(box(0.008, 0.07, 0.07, k.mat(0x16171b, { roughness: 0.25, metalness: 0.3 }), 0.009), cpu.x - 0.037, cpu.y, cpu.z));
   const lcd = new THREE.Mesh(new THREE.PlaneGeometry(0.058, 0.058), new THREE.MeshBasicMaterial({ map: lcdTexture(), toneMapped: false, color: 0xd8d8d8 }));
   lcd.rotation.y = -Math.PI / 2;
-  g.add(at(lcd, cpu.x - 0.0412, cpu.y, cpu.z));
+  pumpG.add(at(lcd, cpu.x - 0.0412, cpu.y, cpu.z));
 
   // ---- 360 radiator on the roof, three white TL fans (light edges) blowing down
   const radX = -0.045, radW = 0.122, radZ = -0.01, radL = 0.397;
   const radY = ROOF - 0.016;
-  g.add(at(box(radW, 0.027, radL - 0.06, lit(0x6a8eff, { roughness: 0.7, map: finTexture(60) }), 0.002), radX, radY, radZ));
-  g.add(at(box(radW + 0.002, 0.03, 0.032, white, 0.004), radX, radY, radZ - radL / 2 + 0.016));
-  g.add(at(box(radW + 0.002, 0.03, 0.032, white, 0.004), radX, radY, radZ + radL / 2 - 0.016));
+  radG.add(at(box(radW, 0.027, radL - 0.06, lit(0x6a8eff, { roughness: 0.7, map: finTexture(60) }), 0.002), radX, radY, radZ));
+  radG.add(at(box(radW + 0.002, 0.03, 0.032, white, 0.004), radX, radY, radZ - radL / 2 + 0.016));
+  radG.add(at(box(radW + 0.002, 0.03, 0.032, white, 0.004), radX, radY, radZ + radL / 2 - 0.016));
   const tlEdge = new THREE.MeshBasicMaterial({ color: 0xa8c4ff, toneMapped: false });
   const tlRing = glow(0x9fbcff, 1.1);
   for (let i = 0; i < 3; i++) {
     const f = makeFan(0.12, { frameMat: fanWhite, bladeMat: bladeWhite, hubMat: chrome, ringMat: tlRing, speed: 1.2 });
     f.rotation.x = Math.PI / 2;
-    g.add(at(f, radX, radY - 0.026, radZ - 0.12 + i * 0.12));
+    radG.add(at(f, radX, radY - 0.026, radZ - 0.12 + i * 0.12));
   }
-  for (const s of [-1, 1]) g.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.0025, 0.016, 0.355), tlEdge), radX + s * 0.0615, radY - 0.026, radZ));
+  for (const s of [-1, 1]) radG.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.0025, 0.016, 0.355), tlEdge), radX + s * 0.0615, radY - 0.026, radZ));
   // white sleeved hoses: pump -> radiator rear end tank
   const hoseMat = lit(0x7a9aff, { roughness: 0.75 });
   for (const dz of [-0.012, 0.012]) {
@@ -386,8 +403,8 @@ export function build(k, d) {
       new THREE.Vector3(radX + 0.03, radY - 0.02, radZ - radL / 2 + 0.07 + dz),
       new THREE.Vector3(radX + 0.03, radY - 0.008, radZ - radL / 2 + 0.03 + dz),
     ]);
-    g.add(shadowed(new THREE.Mesh(new THREE.TubeGeometry(curve, 48, 0.0062, 12), hoseMat)));
-    g.add(at(box(0.016, 0.012, 0.016, white, 0.003), p0.x + 0.004, p0.y - 0.004, p0.z));
+    pumpG.add(shadowed(new THREE.Mesh(new THREE.TubeGeometry(curve, 48, 0.0062, 12), hoseMat)));
+    pumpG.add(at(box(0.016, 0.012, 0.016, white, 0.003), p0.x + 0.004, p0.y - 0.004, p0.z));
   }
 
   /* ---------------------------------------------------------- GPU: Red Devil Spectral White RX 9070 XT */
@@ -417,7 +434,7 @@ export function build(k, d) {
   gpu.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.0015, 0.003, 0.1), gpuAccent), -gW / 2 - 0.0075, 0.016, 0.14));
   gpu.add(at(box(0.008, 0.009, 0.05, portBlack, 0.001), -gW / 2 - 0.005, gT / 2 - 0.006, 0.2));
   gpu.position.set(TRAY - gW / 2 - 0.012, mbY(0.158) - gT / 2 - 0.006, -HZ + 0.045);
-  g.add(gpu);
+  gpuG.add(gpu);
 
   /* ---------------------------------------------------------- Strimer: glowing GPU power cable arc */
   const conn = new THREE.Vector3(gpu.position.x - gW / 2 - 0.009, gpu.position.y + gT / 2 - 0.006, gpu.position.z + 0.2);
@@ -437,15 +454,49 @@ export function build(k, d) {
     const f = i / (lines - 1) - 0.5;
     tubes.push(new THREE.TubeGeometry(path(conn.z + f * (lines - 1) * spread, f * 0.022), 64, 0.0011, 5));
   }
-  g.add(new THREE.Mesh(mergeGeometries(tubes), strimerMat));
+  gpuG.add(new THREE.Mesh(mergeGeometries(tubes), strimerMat));
   const mid = path(conn.z);
   for (const t of [0.3, 0.62]) {                                          // cable combs
     const p = mid.getPointAt(t), tan = mid.getTangentAt(t);
     const comb = box(0.007, 0.0045, lines * spread + 0.006, white, 0.0015);
     comb.position.copy(p);
     comb.rotation.z = Math.atan2(tan.y, tan.x);
-    g.add(comb);
+    gpuG.add(comb);
   }
+
+  /* ---------------------------------------------------------- CPU (hidden under the pump until exploded) */
+  cpuG.add(at(box(0.0012, 0.04, 0.04, k.mat(0x1d6b3a, { roughness: 0.5 }), 0), cpu.x - 0.0006, cpu.y, cpu.z));        // green substrate
+  const ihs = box(0.0032, 0.034, 0.034, k.mat(0xc4c8cf, { metalness: 0.9, roughness: 0.28 }), 0.001);
+  cpuG.add(at(ihs, cpu.x - 0.0028, cpu.y, cpu.z));
+  const ryzen = new THREE.Mesh(new THREE.PlaneGeometry(0.03, 0.03), new THREE.MeshStandardMaterial({ map: ryzenTexture(), transparent: true, metalness: 0.6, roughness: 0.35 }));
+  ryzen.rotation.y = -Math.PI / 2;
+  cpuG.add(at(ryzen, cpu.x - 0.0045, cpu.y, cpu.z));
+  cpuG.visible = false;
+
+  /* ---------------------------------------------------------- exploded view + labels */
+  g.userData.labels = [
+    { id: "cpu", title: "AMD Ryzen 7 7800X3D", sub: "8 cores · 3D V-Cache", anchor: anchor(cpuG, cpu.x - 0.005, cpu.y + 0.012, cpu.z) },
+    { id: "gpu", title: "PowerColor Red Devil Spectral White", sub: "Radeon RX 9070 XT · 16 GB", anchor: anchor(gpu, -gW / 2, gT / 2, gL) },
+    { id: "ram", title: "Corsair Dominator Platinum RGB", sub: "32 GB DDR5", anchor: anchor(ramG, TRAY - 0.055, mbY(0.088) + 0.067, mbZ(0.1835)) },
+    { id: "aio", title: "Lian Li HydroShift II LCD-S", sub: "360 mm AIO", anchor: anchor(pumpG, cpu.x - 0.042, cpu.y + 0.03, cpu.z + 0.03) },
+    { id: "mobo", title: "Gigabyte X870E AORUS PRO X3D ICE", sub: "AM5 · white", anchor: anchor(g, TRAY - 0.006, mbY(0.27), mbZ(0.2)) },
+    { id: "case", title: "be quiet! Light Base 600 LX", sub: "dual chamber · white", anchor: anchor(g, -HX, BASE, HZ) },
+    { id: "cables", title: "Lian Li Strimer", sub: "glowing PSU extension", anchor: anchor(gpuG, ...mid.getPointAt(0.45).toArray()) },
+  ];
+  const ease = (x) => Math.min(1, Math.max(0, x));
+  g.userData.explode = (t) => {
+    t = ease(t);
+    roofG.position.y = 0.11 * t;
+    radG.position.y = 0.06 * t;
+    sideG.position.x = -0.16 * t;
+    frontG.position.z = 0.26 * t;
+    glassMat.opacity = 0.05 - 0.02 * t;
+    edgeMat.opacity = 0.35 - 0.2 * t;
+    gpuG.position.set(0, -0.02 * t, 0.12 * t);
+    pumpG.position.set(-0.025 * t, 0.05 * t, -0.06 * t);       // up and back, clear of the RAM, so the CPU shows from the front-left
+    ramG.position.set(0, 0.05 * t, 0.03 * t);
+    cpuG.visible = t > 0.01;
+  };
 
   /* ---------------------------------------------------------- interior light */
   // blue ARGB light only (no white interior light): front-top glass edge, base strip, back-left
@@ -474,5 +525,7 @@ export function build(k, d) {
     leds.instanceColor.needsUpdate = true;
     if (!reducedMotion) for (const [rot, sp] of mySpin) rot.rotation.z = -t * 3 * sp;
   });
+  const devExplode = new URLSearchParams(location.search).get("explode");   // dev-only preview hook
+  if (devExplode) g.userData.explode(parseFloat(devExplode));
   return g;
 }

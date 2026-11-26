@@ -14,7 +14,8 @@ Deep links work: `https://<username>.github.io/#keyboard` opens straight to the 
 ## Files
 - `gear.js`: your gear (names, specs, photos, links). Edit this to change the cards.
 - `models/<type>.js`: one 3D model per gear type (keyboard, mouse, mousepad, monitor, pc, mic, iem, controller, ...).
-- `lib.js`: shared 3D helpers and textures. `main.js`: scene, desk layout (`slots`), camera, cards.
+- `lib.js`: shared 3D helpers and textures. `main.js`: scene, desk layout (`slots`), camera, cards, cables, switches.
+- `audio.js`: synthesized sounds (no sound files). Add `?q=low` or `?q=high` to the URL to force a quality level.
 - `preview.html?model=pc&view=front`: dev page that shows one model beside its reference photos in `_refs/<type>/`
   (reference photos are local only and are not published, see .gitignore).
 

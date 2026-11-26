@@ -6,6 +6,9 @@ import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { GTAOPass } from "three/addons/postprocessing/GTAOPass.js";
+import { BokehPass } from "three/addons/postprocessing/BokehPass.js";
+import { sfx } from "./audio.js";
 import { owner, gear } from "./gear.js";
 import {
   reducedMotion,
@@ -43,6 +46,9 @@ import { build as M_pc } from "./models/pc.js";
 import { build as M_controller } from "./models/controller.js";
 import { build as M_webcam } from "./models/webcam.js";
 import { build as buildDongle } from "./models/dongle.js";
+import { build as M_chair } from "./models/chair.js";
+import { build as M_wheel } from "./models/wheel.js";
+import { build as M_pedals } from "./models/pedals.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -50,8 +56,11 @@ const $ = (id) => document.getElementById(id);
    Renderer, scene, camera
    ============================================================ */
 const canvas = $("scene");
+// Quality tier: phones / small or weak devices get a lighter renderer. Override with ?q=high or ?q=low.
+const HIGH = (new URLSearchParams(location.search).get("q") ??
+  (matchMedia("(pointer: coarse)").matches || innerWidth < 760 || (navigator.hardwareConcurrency || 8) <= 4 ? "low" : "high")) === "high";
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(devicePixelRatio, HIGH ? 2 : 1.25));
 renderer.setSize(innerWidth, innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.0;
@@ -80,15 +89,27 @@ controls.minAzimuthAngle = -1.15;
 controls.maxAzimuthAngle = 1.15;
 
 const composer = new EffectComposer(renderer);
-composer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+composer.setPixelRatio(Math.min(devicePixelRatio, HIGH ? 1.5 : 1));
 composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.55, 0.45, 0.82);
+// soft contact shadows where things meet the desk (ambient occlusion), high quality only
+const gtao = HIGH ? new GTAOPass(scene, camera, innerWidth, innerHeight) : null;
+if (gtao) {
+  gtao.updateGtaoMaterial({ radius: 0.07, distanceExponent: 1.4, thickness: 0.06, scale: 1, samples: 12 });
+  gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 12 });
+  gtao.blendIntensity = 0.85;
+  composer.addPass(gtao);
+}
+// depth of field: the background softens when an item is in focus, high quality only
+const bokeh = HIGH ? new BokehPass(scene, camera, { focus: 1, aperture: 0, maxblur: 0.006 }) : null;
+if (bokeh) { bokeh.enabled = false; composer.addPass(bokeh); }
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth / (HIGH ? 1 : 2), innerHeight / (HIGH ? 1 : 2)), 0.55, 0.45, 0.82);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
 
 /* ============================================================
    Room: desk, wall, floor, lights
    ============================================================ */
+const roomLights = {};
 function buildRoom() {
   const room = new THREE.Group();
 
@@ -146,7 +167,7 @@ function buildRoom() {
   const key = new THREE.DirectionalLight(0xffe6cc, 1.5);
   key.position.set(1.4, 2.6, 1.8);
   key.castShadow = true;
-  key.shadow.mapSize.set(2048, 2048);
+  key.shadow.mapSize.set(HIGH ? 2048 : 1024, HIGH ? 2048 : 1024);
   key.shadow.camera.left = -1.2; key.shadow.camera.right = 1.2;
   key.shadow.camera.top = 1.2; key.shadow.camera.bottom = -1.2;
   key.shadow.camera.near = 0.5; key.shadow.camera.far = 6;
@@ -162,6 +183,7 @@ function buildRoom() {
   const washR = new THREE.PointLight(PINK, 1.6, 2.6, 1.6);
   washR.position.set(0.45, 0.42, -0.52);
   room.add(washL, washR);
+  Object.assign(roomLights, { key, fill, washL, washR });
 
   return room;
 }
@@ -202,7 +224,7 @@ function buildNeonSign() {
 /* ============================================================
    Gear models: one file per type in models/ (origin = bottom centre on the desk)
    ============================================================ */
-const builders = { keyboard: M_keyboard, mouse: M_mouse, mousepad: M_mousepad, monitor: M_monitor, headset: M_headset, mic: M_mic, iem: M_iem, speakers: M_speakers, pc: M_pc, controller: M_controller, webcam: M_webcam };
+const builders = { keyboard: M_keyboard, mouse: M_mouse, mousepad: M_mousepad, monitor: M_monitor, headset: M_headset, mic: M_mic, iem: M_iem, speakers: M_speakers, pc: M_pc, controller: M_controller, webcam: M_webcam, chair: M_chair, wheel: M_wheel, pedals: M_pedals };
 
 // Where each type sits on the desk: [x, y, z, rotationY]
 const slots = {
@@ -217,6 +239,10 @@ const slots = {
   headset: [-0.36, 0, -0.18, 0.5],
   speakers: [0.08, 0, -0.3, 0],
   webcam: [0.08, 0.481, -0.26, 0],
+  // on the floor (desk top is y = 0, floor is y = -0.76)
+  chair: [1.32, -0.76, 0.42, Math.PI - 0.95],
+  wheel: [-1.2, -0.76, 0.02, 0.55],
+  pedals: [0.02, -0.76, 0.12, 0],
 };
 
 /* ============================================================
@@ -263,7 +289,8 @@ function drawScreen(item) {
 /* ============================================================
    Build everything
    ============================================================ */
-scene.add(buildRoom());
+const room = buildRoom();
+scene.add(room);
 drawScreen(null);
 document.fonts?.ready.then(() => drawScreen(selected?.data ?? null));
 
@@ -343,11 +370,127 @@ scene.add(dongle);
 }
 
 /* ============================================================
+   Light switches: RGB (every glowing part + coloured lights) and room lights
+   ============================================================ */
+const glowMats = [];
+const rgbLights = [roomLights.washL, roomLights.washR];
+{
+  const seen = new Set();
+  scene.traverse((o) => {
+    if (o.isPointLight && !rgbLights.includes(o) && o !== roomLights.key) rgbLights.push(o);
+    if (!o.isMesh) return;
+    for (const m of [].concat(o.material)) {
+      if (!m || seen.has(m) || m.map === screenTex) continue;
+      seen.add(m);
+      if (m.isMeshBasicMaterial && m.toneMapped === false) { m.userData.base = m.color.clone(); glowMats.push(m); }
+    }
+  });
+  for (const l of rgbLights) l.userData.base = l.intensity;
+}
+const sw = { rgb: localStorage.getItem("gear-rgb") !== "off", lights: localStorage.getItem("gear-lights") !== "off" };
+let rgbLevel = sw.rgb ? 1 : 0.05, lightLevel = sw.lights ? 1 : 0.12;
+const base = { key: roomLights.key.intensity, fill: roomLights.fill.intensity, env: scene.environmentIntensity };
+
+/* ============================================================
+   Exploded PC: the case opens and the parts float out with labels
+   ============================================================ */
+const pcItem = items.find((it) => it.data.type === "pc");
+let explodeT = 0;
+const labelEls = [];
+{
+  const wrap = $("labels");
+  var leaderSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  leaderSvg.classList.add("leaders");
+  wrap.appendChild(leaderSvg);
+  for (const l of pcItem?.group.userData.labels ?? []) {
+    const el = document.createElement("div");
+    el.className = "part-label";
+    const b = document.createElement("b"); b.textContent = l.title;
+    const sm = document.createElement("small"); sm.textContent = l.sub;
+    el.append(b, sm);
+    wrap.appendChild(el);
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
+    leaderSvg.appendChild(line);
+    labelEls.push({ el, anchor: l.anchor, line });
+  }
+}
+const vTmp = new THREE.Vector3();
+const pcBox = new THREE.Box3();
+/** Labels sit in a tidy column right of the PC, sorted by height, with leader lines to their parts. */
+function layoutLabels(alpha) {
+  const pts = labelEls.map((l) => {
+    l.anchor.getWorldPosition(vTmp).project(camera);
+    return { l, x: (vTmp.x * 0.5 + 0.5) * innerWidth, y: (-vTmp.y * 0.5 + 0.5) * innerHeight };
+  });
+  // right edge of the PC on screen
+  pcBox.setFromObject(pcItem.group);
+  let right = -Infinity;
+  for (const cx of [pcBox.min.x, pcBox.max.x]) for (const cy of [pcBox.min.y, pcBox.max.y]) for (const cz of [pcBox.min.z, pcBox.max.z]) {
+    vTmp.set(cx, cy, cz).project(camera);
+    right = Math.max(right, (vTmp.x * 0.5 + 0.5) * innerWidth);
+  }
+  const colX = Math.min(right + 28, innerWidth - 230);
+  pts.sort((a, b) => a.y - b.y);
+  const gap = innerWidth < 760 ? 34 : 42;
+  let prev = -Infinity;
+  for (const p of pts) { p.ly = Math.max(p.y, prev + gap); prev = p.ly; }
+  const overflow = prev + 30 - innerHeight;
+  if (overflow > 0) for (const p of pts) p.ly -= overflow;
+  for (const p of pts) {
+    p.l.el.style.opacity = alpha;
+    p.l.el.style.transform = `translate(${colX}px, ${p.ly}px)`;
+    p.l.line.setAttribute("points", `${p.x},${p.y} ${colX - 14},${p.ly} ${colX - 4},${p.ly}`);
+  }
+}
+
+/* ============================================================
+   Close-up mode: one item alone, free orbit, slow turntable
+   ============================================================ */
+let inspecting = false;
+const inspectRig = new THREE.Group();
+{
+  const k = new THREE.DirectionalLight(0xffffff, 2.2); k.position.set(1, 2, 1.5);
+  const r = new THREE.DirectionalLight(0x9fb6ff, 1.2); r.position.set(-1.5, 1, -1);
+  inspectRig.add(k, r, new THREE.HemisphereLight(0xffffff, 0x202028, 0.6));
+  inspectRig.visible = false;
+  scene.add(inspectRig);
+}
+const cableMeshes = scene.children.filter((o) => o.isMesh && o.material === cableMat);
+function setInspect(on) {
+  if (on === inspecting || (on && !selected)) return;
+  inspecting = on;
+  document.body.classList.toggle("is-inspecting", on);
+  room.visible = !on;
+  inspectRig.visible = on;
+  dongle.visible = !on;
+  for (const c of cableMeshes) c.visible = !on;
+  for (const it of items) it.group.visible = !on || it === selected;
+  controls.autoRotate = on && !reducedMotion;
+  controls.autoRotateSpeed = 1.2;
+  if (on) {
+    Object.assign(controls, { minAzimuthAngle: -Infinity, maxAzimuthAngle: Infinity, maxPolarAngle: 2.2, minDistance: selected.radius * 0.6 });
+    const dir = new THREE.Vector3(0.55, 0.45, 1).normalize();
+    const d = selected.radius * (selected.data.type === "pc" ? 3.6 : 2.8);
+    moveCamera(selected.center.clone().addScaledVector(dir, d), selected.center.clone(), 900);
+    sfx.whoosh();
+  } else {
+    Object.assign(controls, { minAzimuthAngle: -1.15, maxAzimuthAngle: 1.15, maxPolarAngle: 1.48, minDistance: 0.22 });
+    if (selected) focusOn(selected);
+  }
+}
+
+/* ============================================================
    Camera moves
    ============================================================ */
 const overview = () => {
-  const narrow = camera.aspect < 1;
-  const d = narrow ? 1.75 : 1;
+  // pull back until the desk's full width (about 1.7 m) fits the screen's horizontal field of view
+  const hfov = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect);
+  const d = Math.max(1, 1.0 / Math.tan(hfov / 2) / 1.37);
+  // tall phone screens need the camera further back: let the orbit reach it and push the fog back
+  const dist = 1.38 * d;
+  controls.maxDistance = Math.max(3.2, dist * 1.15);
+  scene.fog.near = Math.max(2.6, dist + 1.2);
+  scene.fog.far = Math.max(6.5, dist + 5);
   return {
     pos: new THREE.Vector3(-0.1, 0.55 * d + 0.08, 1.25 * d + 0.05),
     target: new THREE.Vector3(-0.1, 0.14, -0.08),
@@ -361,10 +504,11 @@ function moveCamera(pos, target, ms = 1000) {
 }
 const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
-const viewDirs = { pc: [-0.55, 0.35, 1], mic: [-0.2, 0.25, 1] };
+const viewDirs = { pc: [-0.55, 0.35, 1], mic: [-0.2, 0.25, 1], pedals: [0.15, 0.18, 1], wheel: [-0.55, 0.4, 1], chair: [0.55, 0.4, 1] };
+const distScale = { pc: 1.25 }; // the PC opens up when focused, so stand back a little
 function focusOn(item) {
   const dir = new THREE.Vector3(...(viewDirs[item.data.type] ?? [0.18, 0.55, 1])).normalize();
-  const dist = Math.max(0.42, item.radius * 3.4 + 0.08);
+  const dist = Math.max(0.42, item.radius * 3.4 + 0.08) * (distScale[item.data.type] ?? 1);
   const target = item.center.clone();
   if (innerWidth > 760) {
     const right = new THREE.Vector3(0, 1, 0).cross(dir).normalize();
@@ -387,6 +531,7 @@ document.title = `${owner.name} — Setup`;
 const typeLabels = {
   keyboard: "Keyboard", mouse: "Mouse", mousepad: "Mousepad", headset: "Headset", mic: "Microphone",
   monitor: "Monitor", pc: "PC", speakers: "Speakers", controller: "Controller", webcam: "Webcam", iem: "IEMs",
+  wheel: "Wheel", pedals: "Pedals", chair: "Chair",
 };
 const listEl = $("gear-list");
 for (const it of items) {
@@ -500,13 +645,19 @@ function select(it, { updateHash = true } = {}) {
   for (const o of items) o.button.setAttribute("aria-current", String(o === it));
   it.button.scrollIntoView({ block: "nearest", inline: "center", behavior: reducedMotion ? "auto" : "smooth" });
   drawScreen(it.data);
+  if (inspecting) setInspect(false);
   focusOn(it);
   hideHint();
+  sfx.click();
+  sfx.whoosh();
+  if (it.data.type === "pc") sfx.explode();
   if (updateHash) history.replaceState(null, "", `#${it.data.id}`);
 }
 
 function deselect() {
   if (!selected) return;
+  if (inspecting) setInspect(false);
+  sfx.whoosh(0.6, 0.035);
   selected = null;
   card.classList.remove("is-open");
   card.setAttribute("aria-hidden", "true");
@@ -526,11 +677,24 @@ function step(delta) {
 $("card-close").addEventListener("click", deselect);
 $("card-prev").addEventListener("click", () => step(-1));
 $("card-next").addEventListener("click", () => step(1));
+$("card-inspect").addEventListener("click", () => { sfx.click(); setInspect(true); });
+$("inspect-exit").addEventListener("click", () => { sfx.click(); setInspect(false); });
 addEventListener("keydown", (e) => {
-  if (e.key === "Escape") deselect();
+  if (e.key === "Escape") { if (inspecting) setInspect(false); else deselect(); }
   else if (e.key === "ArrowRight" && selected) step(1);
   else if (e.key === "ArrowLeft" && selected) step(-1);
 });
+
+// toolbar: RGB, room lights, sound
+function syncToolbar() {
+  $("tb-rgb").setAttribute("aria-pressed", String(sw.rgb));
+  $("tb-lights").setAttribute("aria-pressed", String(sw.lights));
+  $("tb-sound").setAttribute("aria-pressed", String(sfx.enabled));
+}
+$("tb-rgb").addEventListener("click", () => { sw.rgb = !sw.rgb; localStorage.setItem("gear-rgb", sw.rgb ? "on" : "off"); sfx.click(); syncToolbar(); });
+$("tb-lights").addEventListener("click", () => { sw.lights = !sw.lights; localStorage.setItem("gear-lights", sw.lights ? "on" : "off"); sfx.click(); syncToolbar(); });
+$("tb-sound").addEventListener("click", () => { sfx.setEnabled(!sfx.enabled); sfx.click(); syncToolbar(); });
+syncToolbar();
 
 const hint = $("hint");
 function hideHint() { hint.style.opacity = "0"; }
@@ -557,8 +721,14 @@ function pick(clientX, clientY) {
   return null;
 }
 
+let lastKey = { t: 0, x: 0, y: 0 };
 canvas.addEventListener("pointermove", (e) => {
   if (e.pointerType === "mouse") pointerPx = { x: e.clientX, y: e.clientY };
+  // typing sounds while the cursor glides over the keyboard
+  if (hovered?.data.type === "keyboard" && performance.now() - lastKey.t > 55 && Math.hypot(e.clientX - lastKey.x, e.clientY - lastKey.y) > 14) {
+    lastKey = { t: performance.now(), x: e.clientX, y: e.clientY };
+    sfx.key();
+  }
 });
 canvas.addEventListener("pointerleave", () => { pointerPx = null; });
 canvas.addEventListener("pointerdown", (e) => { down = { x: e.clientX, y: e.clientY }; });
@@ -626,7 +796,40 @@ function tick() {
     for (const m of it.mats) m.emissive.copy(tmp);
     it.group.position.y = it.baseY + it.h * 0.006;
   }
+  // restore glow colours, let animated parts set theirs, then apply the RGB switch on top
+  rgbLevel += ((sw.rgb ? 1 : 0.05) - rgbLevel) * 0.08;
+  lightLevel += ((sw.lights ? 1 : 0.12) - lightLevel) * 0.08;
+  for (const m of glowMats) m.color.copy(m.userData.base);
   for (const a of animators) a(t, hue);
+  if (rgbLevel < 0.999) for (const m of glowMats) m.color.multiplyScalar(rgbLevel);
+  for (const l of rgbLights) l.intensity = l.userData.base * rgbLevel;
+  roomLights.key.intensity = base.key * lightLevel;
+  roomLights.fill.intensity = base.fill * lightLevel;
+  scene.environmentIntensity = base.env * (0.25 + 0.75 * lightLevel);
+
+  // exploded PC
+  if (pcItem?.group.userData.explode) {
+    const goal = selected === pcItem ? 1 : 0;
+    explodeT = reducedMotion ? goal : explodeT + (goal - explodeT) * 0.05;
+    if (Math.abs(goal - explodeT) < 0.001) explodeT = goal;
+    pcItem.group.userData.explode(ease(explodeT));
+    const show = inspecting ? 0 : Math.max(0, (explodeT - 0.6) / 0.4);
+    leaderSvg.style.opacity = show;
+    if (show > 0) layoutLabels(show);
+    else for (const { el } of labelEls) el.style.opacity = 0;
+  }
+
+  // depth of field while something is in focus
+  if (bokeh) {
+    const goal = selected && !inspecting && !tween ? 0.012 : 0;
+    const u = bokeh.uniforms;
+    u.aperture.value += (goal - u.aperture.value) * 0.08;
+    u.focus.value = camera.position.distanceTo(controls.target);
+    bokeh.enabled = u.aperture.value > 0.0004;
+  }
+
+  // fan hum grows as the camera gets close to the PC
+  if (pcItem && frame % 10 === 0) sfx.hum(THREE.MathUtils.clamp(1.4 - camera.position.distanceTo(pcItem.center), 0.15, 1));
 
   composer.render();
   if (frame === 1) $("loader").classList.add("is-done");
@@ -640,6 +843,7 @@ addEventListener("resize", () => {
   camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
   composer.setSize(innerWidth, innerHeight);
+  gtao?.setSize(innerWidth, innerHeight);
 });
 
 window.__gearReady = true;
@@ -652,6 +856,7 @@ window.__shot = async (name, id) => {
     if (it) { select(it); tween && (tween.ms = 0); } else deselect();
   }
   if (tween) { camera.position.copy(tween.pos); controls.target.copy(tween.target); tween = null; }
+  if (bokeh && !selected) { bokeh.uniforms.aperture.value = 0; bokeh.enabled = false; }
   controls.update();
   composer.render();
   const blob = await new Promise((r) => renderer.domElement.toBlob(r, "image/jpeg", 0.85));

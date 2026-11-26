@@ -3,7 +3,7 @@
 // ============================================================
 //  type   : which 3D model to show. One of:
 //           keyboard, mouse, mousepad, iem, headset, mic, monitor,
-//           pc, speakers, controller, webcam
+//           pc, speakers, controller, webcam, wheel, pedals, chair
 //  images : photos for the card: [{ src: "img/x.webp", credit: "Maker" }]. Empty = placeholder icon.
 //  link   : product page, optional.
 //  specs  : any label/value pairs you like, shown in the card.
@@ -22,7 +22,7 @@ export const gear = [
     category: "Monitor",
     name: "ASUS ROG Strix OLED XG27ACDNG",
     specs: { Size: '26.5"', Panel: "QD-OLED", Resolution: "2560 × 1440", Refresh: "360 Hz", Response: "0.03 ms GtG", "HDR peak": "1000 nits" },
-    note: "",
+    note: "One of the best things I've ever bought.",
     images: [
       { src: "img/monitor.webp", credit: "ASUS ROG" },
     ],
@@ -34,7 +34,7 @@ export const gear = [
     category: "Keyboard",
     name: "SU75 Pro",
     specs: { Layout: "75% with RGB knob", Switches: "Hall effect (magnetic)", Lighting: "Per-key RGB" },
-    note: "",
+    note: "My first Hall effect keyboard. I've had it for quite a while now and I still love it.",
     images: [
       { src: "img/keyboard.jpg", credit: "my desk" },
     ],
@@ -46,7 +46,7 @@ export const gear = [
     category: "Mouse",
     name: "WLmouse Beast X Pro",
     specs: { Weight: "39 g", Sensor: "PixArt PAW3950 HS", DPI: "up to 30,000", Polling: "up to 8000 Hz (wireless)", Shell: "Open-frame" },
-    note: "",
+    note: "An impulse buy, but one I'm glad I made.",
     images: [
       { src: "img/mouse-official.webp", credit: "WLMOUSE" },
       { src: "img/mouse-official-2.webp", credit: "WLMOUSE" },
@@ -62,7 +62,7 @@ export const gear = [
     size: [0.42, 0.33],
     logo: "FX TYPE-99",
     specs: { Size: "420 × 330 mm", Thickness: "~4 mm", "Made in": "Japan" },
-    note: "",
+    note: "I'm a big Artisan fan, and this pad is why.",
     images: [
       { src: "img/mousepad.webp", credit: "ARTISAN" },
     ],
@@ -75,7 +75,7 @@ export const gear = [
     name: "TRUTHEAR x Crinacle ZERO:RED",
     plugged: true, // cable runs to the monitor headphone jack
     specs: { Drivers: "Dual dynamic (10 mm + 7.8 mm)", Impedance: "17.5 Ω", Connector: "0.78 mm 2-pin", Plug: "3.5 mm" },
-    note: "",
+    note: "My second pair of these. I've been using this exact model for about four years.",
     images: [
       { src: "img/iem.webp", credit: "TRUTHEAR" },
     ],
@@ -87,7 +87,7 @@ export const gear = [
     category: "Microphone",
     name: "FIFINE AmpliGame AM8 + boom arm",
     specs: { Type: "Dynamic", Pattern: "Cardioid", Outputs: "USB-C + XLR", Response: "50 Hz – 16 kHz", Lighting: "RGB" },
-    note: "",
+    note: "I've had it a long time, and it still gets the job done.",
     images: [
       { src: "img/mic-official.webp", credit: "FIFINE" },
       { src: "img/mic.jpg", credit: "my desk" },
@@ -108,7 +108,7 @@ export const gear = [
       Case: "be quiet! Light Base 600 LX (white)",
       Cables: "Lian Li Strimer",
     },
-    note: "",
+    note: "The PC I always wanted to build when I was young. Now it's real.",
     images: [
       { src: "img/pc.jpg", credit: "my desk" },
       { src: "img/case.webp", credit: "be quiet!" },
@@ -127,10 +127,41 @@ export const gear = [
     category: "Controller",
     name: "Sony DualSense",
     specs: { Color: "Black", Features: "Haptics, adaptive triggers", Connection: "USB-C / Bluetooth" },
-    note: "",
+    note: "I barely use it. It's mostly my brother's.",
     images: [
       { src: "img/controller.webp", credit: "Sony Interactive Entertainment" },
     ],
     link: "https://www.playstation.com/en-us/accessories/dualsense-wireless-controller/",
   },
+  {
+    id: "wheel",
+    type: "wheel",
+    category: "Sim racing",
+    name: "MOZA R5 + ES wheel",
+    specs: { Base: "MOZA R5 direct drive", Torque: "5.5 Nm", Wheel: "MOZA ES", Use: "Forza" },
+    note: "It sits beside the desk, and I clamp it on whenever I want to play Forza.",
+    images: [],
+    link: "https://mozaracing.com/",
+  },
+  {
+    id: "pedals",
+    type: "pedals",
+    category: "Sim racing",
+    name: "MOZA SR-P Lite pedals",
+    specs: { Pedals: "Throttle + brake", Place: "Under the desk" },
+    note: "They live under the desk, ready for the next race.",
+    images: [],
+    link: "https://mozaracing.com/",
+  },
+  {
+    id: "chair",
+    type: "chair",
+    category: "Chair",
+    name: "Office chair",
+    specs: { Colour: "Black", Type: "Standard office chair" },
+    note: "",
+    images: [],
+    link: "",
+  },
 ];
+
