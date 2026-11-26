@@ -42,6 +42,7 @@ import { build as M_speakers } from "./models/speakers.js";
 import { build as M_pc } from "./models/pc.js";
 import { build as M_controller } from "./models/controller.js";
 import { build as M_webcam } from "./models/webcam.js";
+import { build as buildDongle } from "./models/dongle.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -289,6 +290,57 @@ for (const data of gear) {
   items.push({ data, group, mats: kit.mats, center, radius, baseY: group.position.y, h: 0 });
 }
 const byId = new Map(items.map((it) => [it.data.id, it]));
+
+/* ============================================================
+   Cables: keyboard + mouse dongle + mic -> PC rear I/O, IEMs -> monitor headphone jack.
+   Each model exposes its cable end in group.userData (local coordinates).
+   ============================================================ */
+const byType = (t) => items.find((it) => it.data.type === t);
+const anchor = (it, key) => {
+  if (!it?.group.userData[key]) return null;
+  it.group.updateMatrixWorld(true);
+  return it.group.localToWorld(it.group.userData[key].clone());
+};
+const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+const cableMat = new THREE.MeshStandardMaterial({ color: 0x141518, roughness: 0.65, metalness: 0.05 });
+function addCable(points, r = 0.0022) {
+  const curve = new THREE.CatmullRomCurve3(points, false, "centripetal");
+  const tube = new THREE.TubeGeometry(curve, Math.max(24, Math.ceil(curve.getLength() / 0.004)), r, 8, false);
+  scene.add(shadowed(new THREE.Mesh(tube, cableMat)));
+}
+
+// the WLMOUSE 8K receiver sits on the desk by the monitor (it is not a card of its own)
+const dongle = buildDongle(makeKit(), { id: "dongle", type: "dongle" });
+dongle.position.set(0.24, 0, -0.13);
+dongle.rotation.y = -0.35;
+scene.add(dongle);
+
+{
+  const Y = 0.0024; // cable lying on the desk
+  const pc = byType("pc"), io = anchor(pc, "rearIO");
+  if (io) {
+    const lane = Math.min(io.z - 0.035, -0.39); // gap between the PC's back and the desk's back edge
+    const intoPC = (i) => [V3(io.x + 0.14, Y, lane), V3(io.x + 0.03, Y + 0.004, lane - 0.004 * i),
+      V3(io.x + 0.008 * i, io.y * 0.45, io.z - 0.03), io.clone().add(V3(0.008 * i, -0.014 * i, 0))];
+
+    const kb = anchor(byType("keyboard"), "cableOut");
+    if (kb) addCable([kb, V3(kb.x - 0.01, Y, kb.z - 0.05), V3(-0.04, Y, -0.17), V3(-0.22, Y, lane + 0.01), ...intoPC(0)], 0.0021);
+
+    if (dongle?.userData.cableOut) {
+      dongle.updateMatrixWorld(true);
+      const d = dongle.localToWorld(dongle.userData.cableOut.clone());
+      addCable([d, V3(d.x - 0.01, Y, d.z - 0.05), V3(d.x - 0.12, Y, lane + 0.005), V3(-0.2, Y, lane + 0.004), ...intoPC(1)], 0.0018);
+    }
+
+    const mic = anchor(byType("mic"), "cableOut"); // ends at the clamp, under the desk top
+    if (mic) addCable([mic, V3(mic.x - 0.08, -0.03, -0.44), V3(-0.2, -0.03, -0.44), V3(io.x + 0.06, -0.012, -0.436),
+      V3(io.x + 0.045, Y + 0.006, -0.428), ...intoPC(2).slice(1)], 0.0019);
+  }
+
+  const iem = anchor(byType("iem"), "cableOut"), jack = anchor(byType("monitor"), "audioIn");
+  if (iem && jack) addCable([iem, V3(iem.x + 0.04, Y, iem.z - 0.06), V3(-0.3, Y, 0.0), V3(-0.08, Y, -0.09), V3(jack.x - 0.03, Y, jack.z + 0.05),
+    V3(jack.x, jack.y * 0.4, jack.z + 0.012), jack], 0.0013);
+}
 
 /* ============================================================
    Camera moves

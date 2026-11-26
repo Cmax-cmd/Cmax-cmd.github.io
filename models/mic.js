@@ -298,5 +298,6 @@ export function build(k, d) {
     toG(V(0.02, 0.06, -0.02)), V(0.012, 0.02, -0.04), V(0.01, -0.03, -0.05),
   ];
   g.add(shadowed(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(cablePts), 120, 0.0019, 6, false), rubber)));
+  g.userData.cableOut = cablePts[cablePts.length - 1].clone();
   return g;
 }

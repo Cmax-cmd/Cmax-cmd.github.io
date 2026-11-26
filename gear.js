@@ -73,6 +73,7 @@ export const gear = [
     type: "iem",
     category: "IEMs",
     name: "TRUTHEAR x Crinacle ZERO:RED",
+    plugged: true, // cable runs to the monitor headphone jack
     specs: { Drivers: "Dual dynamic (10 mm + 7.8 mm)", Impedance: "17.5 Ω", Connector: "0.78 mm 2-pin", Plug: "3.5 mm" },
     note: "",
     images: [

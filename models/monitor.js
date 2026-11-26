@@ -201,6 +201,8 @@ export function build(k, d) {
     g.add(at(box(w, 0.002, 0.005, port, 0.0005), x, ioY - 0.0006, midZ));
   }
 
+  g.userData.audioIn = new THREE.Vector3(0.12, ioY - 0.002, midZ); // 3.5 mm jack: the IEMs plug in here
+
   // ---- monitor arm (black single gas-spring arm, desk clamp at the back edge)
   const vesaZ = backZ - 0.002;
   g.add(at(box(0.11, 0.11, 0.006, armM, 0.006), 0, vesaY, vesaZ - 0.003));      // VESA plate

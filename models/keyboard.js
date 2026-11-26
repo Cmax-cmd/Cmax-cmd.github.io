@@ -364,6 +364,7 @@ export function build(k, d) {
   braid.repeat.set(len / 0.003, 1);
   const cable = shadowed(new THREE.Mesh(new THREE.TubeGeometry(curve, 460, 0.0021, 6, false), k.mat(0xffffff, { map: braid, roughness: 0.8 })));
   g.add(cable);
+  g.userData.cableOut = pts[pts.length - 1].clone(); // scene cables continue from here to the PC
   // USB-C plug boot at the case
   g.add(at(box(0.009, 0.0055, 0.014, k.mat(0x0e0e10, { roughness: 0.5, metalness: 0.4 }), 0.0018), cx, y0, zb - 0.006));
 

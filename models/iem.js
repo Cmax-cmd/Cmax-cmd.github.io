@@ -198,9 +198,11 @@ export function build(k, d) {
   ];
   const { mesh: mainMesh, curve: mainCurve } = twisted(main, cableMat);
   g.add(mainMesh);
-  // 3.5 mm plug: strain relief, housing, gold/silver pin with insulator rings
+  // 3.5 mm plug: strain relief, housing, gold/silver pin with insulator rings (hidden when plugged into the monitor)
   const endP = mainCurve.getPointAt(1), endT = mainCurve.getTangentAt(1);
   const plugAt = (dist) => endP.clone().addScaledVector(endT, dist).setY(3.2);
+  g.userData.cableOut = endP.clone();
+  if (!d.plugged) {
   g.add(shadowed(along(new THREE.Mesh(new THREE.CylinderGeometry(1.3, 2.4, 6, 16), plugMat), plugAt(3), endT)));
   g.add(shadowed(along(new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.2, 14, 24), plugMat), plugAt(13), endT)));
   g.add(shadowed(along(new THREE.Mesh(new THREE.CylinderGeometry(3.25, 3.25, 1.2, 24), chrome), plugAt(19.6), endT)));
@@ -209,6 +211,7 @@ export function build(k, d) {
     if (i < 2) g.add(along(new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.7, 0.6, 16), plugMat), plugAt(24.4 + i * 4.2), endT));
   }
   g.add(along(new THREE.Mesh(new THREE.SphereGeometry(1.75, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), gold), plugAt(33.4), endT));
+  }
 
   g.scale.setScalar(0.001);
   return g;

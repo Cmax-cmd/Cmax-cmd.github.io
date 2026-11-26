@@ -240,6 +240,7 @@ export function build(k, d) {
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
   g.add(at(floor, 0, BASE + 0.0005, 0));
+  g.userData.rearIO = new THREE.Vector3(TRAY - 0.022, ROOF - 0.13, -HZ - 0.004); // USB cables plug in here
   // back wall with I/O cut-out and PCI slot covers
   g.add(at(box(W - 0.012, ROOF - BASE, 0.006, inner, 0.002), 0, (ROOF + BASE) / 2, -HZ + 0.003));
   {                                                                        // outside of the back panel

@@ -5,7 +5,7 @@
 // b = arc-length position around the cross-section (-50 right bottom edge .. 0 top centre .. +50 left bottom edge).
 // The open "skeleton" lattice is cut as real polygon holes in that (a, b) domain, triangulated, mapped onto the
 // surface and given a 1 mm wall thickness, so the struts read as solid metal from every angle.
-import { THREE, shadowed } from "../lib.js";
+import { THREE, shadowed, box } from "../lib.js";
 import { TessellateModifier } from "three/addons/modifiers/TessellateModifier.js";
 
 const HALF_L = 61;      // half length (122 mm)
@@ -242,61 +242,94 @@ function roundedPath(poly, r, PathType = THREE.Path) {
 const V = (x, y) => new THREE.Vector2(x, y);
 const rect = (a0, a1, b0, b1) => [V(a0, b0), V(a1, b0), V(a1, b1), V(a0, b1)];
 
-// button rear edge ("smile" across the top) and the front of the lattice
+// button rear edge ("smile" across the top)
 const grooveA = (b) => -0.009 * b * b;
-const latticeFront = (b) => -18 - 0.005 * b * b;
 const SIDE_FRONT = 5;  // on the sides the lattice starts behind the side buttons
-const BACK = 57.5;      // last row of struts before the solid palm cap
 const RIM = 47.6;      // bottom rim of the shell
 
+/*
+ * Hand-laid Beast X Pro web, traced from the official top shots (mouse-1/2/3) and the left-rear desk photo.
+ * Nodes are strut junctions in (a, b) = (mm along the length, mm around the section), for the LEFT half (b >= 0);
+ * the right half is mirrored with a small offset, as on the real shell. Cells are the openings between struts.
+ */
+const NODES = {
+  // centre line
+  C0: [0, 0], C1: [12.5, 0], C2: [21.5, 0], C3: [43.5, 0], C4: [60.2, 0],
+  // first ring out: groove junction, then the long diagonals' far ends
+  A0: [grooveA(12), 12], A1: [8.5, 10], A2: [24.5, 14], A3: [36.5, 11], A4: [49.5, 14.5], A5: [60.4, 8],
+  // shoulder (top of the side wall)
+  B0: [grooveA(22), 22], B1: [12, 25.5], B2: [27, 23], B3: [40, 27], B4: [51, 25.5], B5: [60.5, 20],
+  // middle of the side wall
+  S0: [8.5, 33], S1: [19.5, 36.5], S2: [33, 37.5], S3: [46, 36.5], S4: [60.2, 33],
+  // bottom rim
+  R0: [12.5, RIM], R1: [26, RIM], R2: [40, RIM], R3: [52.5, RIM], R4: [60.3, RIM],
+};
+const CELLS = [
+  // behind the groove: wide trapezoids either side of the spine
+  ["C0", "A0", "A1", "C1"], ["A0", "B0", "B1", "A1"],
+  // the long diagonal struts A1 -> C2 meet their mirror on the spine (the "V" over the hump)
+  ["C1", "A1", "C2"], ["A1", "A2", "C2"], ["A1", "B1", "B2", "A2"],
+  // side wall, front: triangles behind the side buttons
+  ["B0", "S0", "B1"], ["S0", "S1", "B1"], ["B1", "S1", "B2"],
+  ["S0", "R0", "S1"], ["S1", "R0", "R1"],
+  // rear hump: big 4-5 sided cells
+  ["A2", "B2", "B3", "A3"], ["B2", "S1", "S2", "B3"], ["S1", "R1", "R2", "S2"],
+  ["A3", "B3", "B4", "A4"], ["B3", "S2", "S3", "B4"], ["S2", "R2", "R3", "S3"],
+  // palm end: smaller cells as the shell closes
+  ["C4", "A4", "A5"], ["A4", "B4", "B5", "A5"], ["B4", "S3", "S4", "B5"], ["S3", "R3", "R4", "S4"],
+];
+// cells that straddle the centre line (the spine stops at C2): primed names are the mirrored right-hand nodes
+const CENTRE_CELLS = [
+  ["C2", "A2", "A3", "A3'", "A2'"],          // big pentagon over the hump
+  ["A3'", "A3", "A4", "C4", "A4'"],          // the next one back, under the cross strut A3-A3'
+];
+// small per-node offsets for the right half, so the two halves are not mirror-perfect
+const RIGHT_NUDGE = { A1: [1.5, -0.8], A2: [-1.2, 1.0], A3: [2.0, 0.6], A4: [-1.0, -1.2], B1: [1.0, 1.2], B2: [2.2, -0.8],
+  B3: [-1.5, 0.8], B4: [1.2, 0], S1: [-1.5, 0], S2: [1.8, 0.5], S3: [-1.2, -0.6] };
+
 function latticeHoles() {
-  let seed = 11;
-  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-  const COLS = 6, ROWS = 5;
-  const grid = [];
-  for (let j = 0; j <= COLS; j++) {
-    const b = -RIM + (2 * RIM * j) / COLS;
-    // row 0 = front of the lattice, row 1 = the button groove (a strut runs along it), then evenly to the back
-    const ab = Math.abs(b);
-    const g1 = ab <= 26 ? grooveA(b) : grooveA(26) + (ab - 26) * 0.25;
-    const col = [Math.min(latticeFront(b), g1 - 8), g1];
-    for (let i = 1; i < ROWS; i++) col.push(g1 + ((BACK - g1) * i) / (ROWS - 1));
-    grid.push(col.map((a, i) => {
-      const fixedRow = i <= 1 || i === ROWS;
-      const fixedCol = j === 0 || j === COLS;
-      const ja = fixedRow ? 0 : (rnd() - 0.5) * 9;
-      const jb = fixedCol || (j === COLS / 2 && i <= 2) ? 0 : (rnd() - 0.5) * 6;
-      return V(a + ja, b + jb);
-    }));
-  }
   const holes = [];
   const btnB0 = 21.5;
-  for (let j = 0; j < COLS; j++) for (let i = 0; i < ROWS; i++) {
-    const p00 = grid[j][i], p10 = grid[j][i + 1], p11 = grid[j + 1][i + 1], p01 = grid[j + 1][i];
-    let cells;
-    const r = rnd();
-    if (r < 0.3) cells = [[p00, p10, p11, p01]];
-    else if (r < 0.65) cells = [[p00, p10, p11], [p00, p11, p01]];
-    else cells = [[p00, p10, p01], [p10, p11, p01]];
-    for (let poly of cells) {
-      // the buttons (row 0, in front of the groove) are solid apart from a few small slits
-      poly = inset(poly, i === 0 ? 3.6 : 1.0);
-      // keep the side-button / side-slot area solid (both sides, the shell is symmetrical)
+  for (const sg of [1, -1]) {
+    // right half: mirrored, interior nodes nudged back a little (the real web is not perfectly symmetric)
+    const node = (n) => {
+      const [a, b] = NODES[n];
+      const [da, db] = (sg < 0 && RIGHT_NUDGE[n]) || [0, 0];
+      return V(a + da, (b + db) * sg);
+    };
+    for (const cell of CELLS) {
+      if (sg < 0 && cell.every((n) => n.startsWith("C"))) continue;
+      let poly = inset(cell.map(node), 0.65);
+      // keep the side-button area solid
       if (poly.length >= 3 && poly.some((p) => Math.abs(p.y) > btnB0 && p.x < SIDE_FRONT)) {
-        const sgn = poly.reduce((s, p) => s + p.y, 0) > 0 ? 1 : -1;
         const cx = poly.reduce((s, p) => s + p.x, 0) / poly.length;
-        if (cx > SIDE_FRONT - 4) poly = clipHalf(poly, 1, 0, SIDE_FRONT + 1.35);
-        else poly = clipHalf(poly, 0, -sgn, -(btnB0 - 1.35));
+        if (cx > SIDE_FRONT - 4) poly = clipHalf(poly, 1, 0, SIDE_FRONT + 1.2);
+        else poly = clipHalf(poly, 0, -sg, -(btnB0 - 1.2));
       }
-      if (poly.length < 3 || Math.abs(area(poly)) < 9) continue;
-      holes.push(roundedPath(poly, 1.6));
+      if (poly.length < 3 || Math.abs(area(poly)) < 6) continue;
+      holes.push(roundedPath(poly, 1.5));
+    }
+    // short slits in the rear of the buttons (the left one is a triangle, the right one longer)
+    const slit = sg > 0 ? [V(-15, 10), V(-6.8, 6.5), V(-7.2, 15.5)] : [V(-20, -8.5), V(-7, -5), V(-8, -19)];
+    holes.push(roundedPath(slit, 1.2));
+    // the ribbed lower side wall: 8 long slanted rib openings from under the side buttons backwards
+    for (let k = 0; k < 8; k++) {
+      const a0 = -36 + k * 5.6;
+      const r = [V(a0, 33 * sg), V(a0 + 3, 33 * sg), V(a0 + 3 - 3, 46.8 * sg), V(a0 - 3, 46.8 * sg)];
+      holes.push(roundedPath(r, 1.2));
     }
   }
-  // side slots ("ladder") under the side buttons, both sides
-  for (const sg of [1, -1]) for (let k = 0; k < 6; k++) {
-    const a0 = -30 + k * 5.2;
-    holes.push(roundedPath(sg > 0 ? rect(a0, a0 + 3.4, 34, 45.5) : rect(a0, a0 + 3.4, -45.5, -34), 1.4));
+  for (const cell of CENTRE_CELLS) {
+    const poly = inset(cell.map((n) => {
+      const right = n.endsWith("'"), key = n.replace("'", "");
+      const [a, b] = NODES[key];
+      const [da, db] = (right && RIGHT_NUDGE[key]) || [0, 0];
+      return V(a + da, right ? -(b + db) : b);
+    }), 0.65);
+    if (poly.length >= 3) holes.push(roundedPath(poly, 1.5));
   }
+  // the narrow window beside the split behind the wheel (left only)
+  holes.push(roundedPath([V(-21, 1.6), V(-8.5, 1.6), V(-8.5, 5.0), V(-19, 4.4)], 1));
   // centre split + wheel opening + button rear groove as one cut
   const w = 0.34, wb = 4.6, g = [];
   g.push(V(-60.2, -w), V(-47.5, -w), V(-47.5, -wb), V(-28.5, -wb), V(-28.5, -w), V(grooveA(0) - w, -w));
@@ -359,16 +392,31 @@ export function build(k, d) {
   // outer magnesium shell with the lattice cut out (1 mm thick)
   const shellShape = new THREE.Shape(rect(-HALF_L, HALF_L, -50, 50));
   shellShape.holes.push(...latticeHoles());
-  const shell = shadowed(new THREE.Mesh(sheet([shellShape], { outer: 0, inner: -1.0, maxEdge: 6,
+  const shell = shadowed(new THREE.Mesh(sheet([shellShape], { outer: 0, inner: -1.6, maxEdge: 6,
     skipWall: (a) => Math.abs(a) > HALF_L - 0.5 }), shellMat));
   shell.name = "shell";
   g.add(shell);
 
-  // internal chassis / PCB tray, seen through the openings
-  const chassisMat = k.mat(0x606268, { roughness: 0.8, metalness: 0.1, map: hexTexture() });
-  const chassis = shadowed(new THREE.Mesh(gridSheet(-HALF_L + 3, HALF_L - 2, -50, 50, 48, 28, -3.6, 1 / 26), chassisMat));
-  chassis.name = "chassis";
-  g.add(chassis);
+  // internals seen through the openings: dark inner side walls, PCB, battery, sensor housing, coil, flex cable
+  const chassisMat = k.mat(0x3a3c42, { roughness: 0.8, metalness: 0.1, map: hexTexture() });
+  for (const [b0, b1] of [[-50, -30], [30, 50]]) {
+    const band = shadowed(new THREE.Mesh(gridSheet(-HALF_L + 4, HALF_L - 3, b0, b1, 40, 6, -2.6, 1 / 26), chassisMat));
+    band.name = "chassis";
+    g.add(band);
+  }
+  const parts = [
+    [box(38, 1.6, 80, k.mat(0x1b2420, { roughness: 0.6 }), 0.6), 0, 4.3, -6],                     // PCB
+    [box(22, 10, 32, k.mat(0x2c2e33, { roughness: 0.5, metalness: 0.45 }), 2.2), 0, 10.2, 25],    // battery pack (dark, as seen through the shell)
+    [box(19, 0.6, 26, k.mat(0x1c1d21, { roughness: 0.5 }), 0.2), 0, 15.5, 25],                     // battery label
+    [box(13, 5, 15, k.mat(0x26272b, { roughness: 0.55 }), 1.2), 0, 7.5, -16],                      // sensor housing
+    [box(30, 9, 8, k.mat(0x3c3e44, { roughness: 0.5, metalness: 0.3 }), 1.5), 0, 9.5, 3],         // frame cross-member
+    [box(4, 0.5, 28, k.mat(0x9a5626, { roughness: 0.4, metalness: 0.6 }), 0.2), -15, 5.4, 12],    // flex cable
+    [box(16, 14, 3, k.mat(0x44474d, { roughness: 0.45, metalness: 0.4 }), 1), 0, 10, 44],          // rear bracket
+  ];
+  for (const [m, x, y, z] of parts) { m.position.set(x, y, z); m.name = "chassis-part"; g.add(m); }
+  const coil = shadowed(new THREE.Mesh(new THREE.CylinderGeometry(3.6, 3.6, 3, 20), k.mat(0xb8642e, { roughness: 0.3, metalness: 0.8 })));
+  coil.position.set(13, 6.6, 6);
+  g.add(coil);
 
   // side buttons (left = -x = +b), raised pads on the shell
   for (const [a0, a1] of [[-27, -13.2], [-12.2, 1.5]]) {
